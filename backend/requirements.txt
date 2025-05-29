@@ -1,0 +1,9 @@
+Flask
+Flask-SQLAlchemy
+Flask-Migrate
+Flask-Cors
+python-dotenv
+APScheduler
+exa-py
+SQLAlchemy
+spacy 
