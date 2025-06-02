@@ -1,10 +1,13 @@
-#!/bin/sh
+#!/bin/bash
 set -e
+
+# Start cron service
+service cron start
 
 # Run database migrations
 flask db upgrade
 
-# Populate the database (optional, if you want to fetch data on startup)
+# Initial data fetch
 flask fetch-exa
 
 # Start the Flask server

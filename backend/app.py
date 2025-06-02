@@ -519,6 +519,22 @@ def infer_category(title, text):
                 return cat
     return "General"
 
+def infer_sentiment(title, text):
+    # Simple rule-based sentiment inference
+    positive_words = ["progress", "growth", "success", "improve", "benefit", "positive", "win", "peace", "agreement", "support", "help", "good", "boost", "advance", "resolve", "cooperate", "strong", "stable", "hope", "opportunity"]
+    negative_words = ["crisis", "conflict", "tension", "attack", "negative", "problem", "loss", "decline", "fail", "violence", "threat", "bad", "weak", "unstable", "fear", "concern", "risk", "danger", "protest", "dispute", "sanction"]
+    content = f"{title or ''} {text or ''}".lower()
+    pos = any(word in content for word in positive_words)
+    neg = any(word in content for word in negative_words)
+    if pos and not neg:
+        return "Positive"
+    elif neg and not pos:
+        return "Negative"
+    elif pos and neg:
+        return "Cautious"
+    else:
+        return "Neutral"
+
 @app.route('/api/dashboard')
 def dashboard():
     def normalize_sentiment(s):
@@ -611,7 +627,11 @@ def dashboard():
         contradictions = 0
         for match in bd_matches + intl_matches:
             # Compare sentiment as a proxy for agreement
-            if match.sentiment and a.sentiment and match.sentiment.lower() == a.sentiment.lower():
+            sentiment_val = match.sentiment or ''
+            sentiment = normalize_sentiment(sentiment_val)
+            if sentiment == 'Neutral' and (not sentiment_val or sentiment_val.strip().lower() not in ['positive', 'negative', 'neutral', 'cautious']):
+                sentiment = infer_sentiment(match.title, match.full_text)
+            if sentiment and a.sentiment and sentiment.lower() == a.sentiment.lower():
                 agreements += 1
             else:
                 contradictions += 1
@@ -633,17 +653,61 @@ def dashboard():
         doc = nlp(text_for_ner)
         entities = list(set([ent.text for ent in doc.ents if ent.label_ in ['PERSON', 'ORG', 'GPE', 'LOC', 'PRODUCT', 'EVENT', 'WORK_OF_ART', 'LAW', 'LANGUAGE']]))
 
+        # --- Media Coverage Summary ---
+        media_coverage_summary = {
+            'bangladeshi_media': 'Covered' if len(bd_matches) > 0 else 'Not covered',
+            'international_media': 'Covered' if len(intl_matches) > 0 else 'Not covered'
+        }
+
+        # --- Language ---
+        language_map = {
+            'timesofindia.indiatimes.com': 'English',
+            'hindustantimes.com': 'English',
+            'ndtv.com': 'English',
+            'thehindu.com': 'English',
+            'indianexpress.com': 'English',
+            'indiatoday.in': 'English',
+            'news18.com': 'English',
+            'zeenews.india.com': 'Hindi',
+            'aajtak.in': 'Hindi',
+            'abplive.com': 'Hindi',
+            'jagran.com': 'Hindi',
+            'bhaskar.com': 'Hindi',
+            'livehindustan.com': 'Hindi',
+            'business-standard.com': 'English',
+            'economictimes.indiatimes.com': 'English',
+            'livemint.com': 'English',
+            'scroll.in': 'English',
+            'thewire.in': 'English',
+            'wionews.com': 'English',
+            'indiatvnews.com': 'Hindi',
+            'newsnationtv.com': 'Hindi',
+            'jansatta.com': 'Hindi',
+            'india.com': 'English',
+        }
+        language = language_map.get(a.source, 'Other')
+
+        # Assign sentiment robustly
+        sentiment_val = a.sentiment or ''
+        sentiment = normalize_sentiment(sentiment_val)
+        if sentiment == 'Neutral' and (not sentiment_val or sentiment_val.strip().lower() not in ['positive', 'negative', 'neutral', 'cautious']):
+            sentiment = infer_sentiment(a.title, a.full_text)
+        if not sentiment:
+            sentiment = 'Neutral'
+
         latest_news_data.append({
             'date': a.publishedDate if hasattr(a, 'publishedDate') else (a.published_at.isoformat() if a.published_at else None),
-            'headline': a.title,
+            'headline': a.title or '',
             'source': a.source if a.source and a.source.lower() != 'unknown' else 'Other',
-            'category': category,
-            'sentiment': normalize_sentiment(a.sentiment),
+            'category': category or 'General',
+            'sentiment': sentiment,
             'fact_check': fact_check,
             'fact_check_reason': reason,
-            'detailsUrl': a.url,
+            'detailsUrl': a.url or '',
             'id': a.id,
-            'entities': entities
+            'entities': entities,
+            'media_coverage_summary': media_coverage_summary,
+            'language': language
         })
 
     # Timeline of Key Events (use major headlines/dates from filtered news)
@@ -656,34 +720,9 @@ def dashboard():
     ]
 
     # Language Press Comparison (distribution by language, from filtered news)
-    language_map = {
-        'timesofindia.indiatimes.com': 'English',
-        'hindustantimes.com': 'English',
-        'ndtv.com': 'English',
-        'thehindu.com': 'English',
-        'indianexpress.com': 'English',
-        'indiatoday.in': 'English',
-        'news18.com': 'English',
-        'zeenews.india.com': 'Hindi',
-        'aajtak.in': 'Hindi',
-        'abplive.com': 'Hindi',
-        'jagran.com': 'Hindi',
-        'bhaskar.com': 'Hindi',
-        'livehindustan.com': 'Hindi',
-        'business-standard.com': 'English',
-        'economictimes.indiatimes.com': 'English',
-        'livemint.com': 'English',
-        'scroll.in': 'English',
-        'thewire.in': 'English',
-        'wionews.com': 'English',
-        'indiatvnews.com': 'Hindi',
-        'newsnationtv.com': 'Hindi',
-        'jansatta.com': 'Hindi',
-        'india.com': 'English',
-    }
     lang_dist = {}
     for item in latest_news_data:
-        lang = language_map.get(item['source'], 'Other')
+        lang = item['language']
         lang_dist[lang] = lang_dist.get(lang, 0) + 1
 
     # Fact-Checking: Cross-Media Comparison (from filtered news)

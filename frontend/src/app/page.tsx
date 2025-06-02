@@ -81,6 +81,17 @@ interface DashboardData {
   keySources?: string[];
 }
 
+// Utility function to strip TLD from domain
+function stripTLD(domain: string) {
+  if (!domain) return '';
+  // Remove protocol if present
+  domain = domain.replace(/^https?:\/\//, '');
+  // Remove www. if present
+  domain = domain.replace(/^www\./, '');
+  // Remove TLDs
+  return domain.replace(/\.(com|in|org|net|co|info|gov|edu|int|mil|biz|io|ai|news|tv|me|us|uk|bd|au|ca|pk|lk|np|my|sg|ph|id|cn|jp|kr|ru|fr|de|es|it|nl|se|no|fi|dk|pl|cz|tr|ir|sa|ae|qa|kw|om|bh|jo|lb|sy|iq|ye|il|za|ng|ke|gh|tz|ug|zm|zw|mu|mg|ma|dz|tn|ly|eg|sd|et|sn|cm|ci|gh|sl|gm|lr|bw|na|mz|ao|cd|cg|ga|gq|gw|st|cv|sc|km|eh|so|ss|cf|td|ne|ml|bf|bj|tg|gn|gw|mr|sm|va|mc|ad|li|gi|je|gg|im|fo|gl|sj|ax|eu|asia|cat|arpa|pro|museum|coop|aero|xxx|idv|mobi|name|jobs|travel|post|geo|tel|gov|edu|mil|int|arpa|root|test|example|invalid|localhost)(\.[a-z]{2,})?$/, '');
+}
+
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -96,11 +107,12 @@ export default function Dashboard() {
   const [keywordFilter, setKeywordFilter] = useState<string>("");
   const [factCheckTooltip, setFactCheckTooltip] = useState<{ show: boolean, text: string, x: number, y: number }>({ show: false, text: '', x: 0, y: 0 });
   const [categoryFilter, setCategoryFilter] = useState<string>("");
-  const sentimentOptions = ["", "Positive", "Negative", "Neutral", "Cautious"];
   const categoryOptions = useMemo(() => {
     const catSet = new Set((data?.latestIndianNews || []).map((item: any) => String(item.category || "")).filter(Boolean));
     return ["", ...Array.from(catSet) as string[]];
   }, [data]);
+  const sentimentOptions = ["", "Positive", "Negative", "Neutral", "Cautious"];
+  const [selectedEntity, setSelectedEntity] = useState<string>("");
 
   // Fetch Indian sources for dropdown
   useEffect(() => {
@@ -142,13 +154,20 @@ export default function Dashboard() {
   };
 
   // Table pagination
-  const paginatedNews = () => {
+  const filteredNews = useMemo(() => {
     if (!data?.latestIndianNews) return [];
     let filtered = [...data.latestIndianNews];
+    if (selectedEntity) {
+      filtered = filtered.filter(item => (item.entities || []).includes(selectedEntity));
+    }
     if (sentimentFilter) filtered = filtered.filter(item => (item.sentiment || "").toLowerCase() === sentimentFilter.toLowerCase());
     if (categoryFilter) filtered = filtered.filter(item => (item.category || "").toLowerCase() === categoryFilter.toLowerCase());
     if (keywordFilter) filtered = filtered.filter(item => (item.headline || '').toLowerCase().includes(keywordFilter.toLowerCase()));
-    let sorted = [...filtered];
+    return filtered;
+  }, [data, selectedEntity, sentimentFilter, categoryFilter, keywordFilter]);
+
+  const paginatedNews = () => {
+    let sorted = [...filteredNews];
     sorted.sort((a, b) => {
       let aVal = a[sortBy] || "";
       let bVal = b[sortBy] || "";
@@ -175,78 +194,38 @@ export default function Dashboard() {
     setPage(1);
   };
 
-  // Pie/Bar data for language distribution
-  const langLabels = Object.keys(data?.languageDistribution || {});
-  const langValues = Object.values(data?.languageDistribution || {});
-  const langColors = ["#0ea5e9", "#f59e42", "#22c55e", "#f43f5e", "#a78bfa", "#fbbf24"];
-  const langChartData = {
-    labels: langLabels,
+  // Compute media coverage distribution
+  const mediaCoverageCounts = useMemo(() => {
+    let bangladeshi = 0, international = 0, both = 0;
+    (data?.latestIndianNews || []).forEach((item: any) => {
+      const b = item.media_coverage_summary?.bangladeshi_media && item.media_coverage_summary.bangladeshi_media !== 'Not covered';
+      const i = item.media_coverage_summary?.international_media && item.media_coverage_summary.international_media !== 'Not covered';
+      if (b && i) both++;
+      else if (b) bangladeshi++;
+      else if (i) international++;
+    });
+    return { bangladeshi, international, both };
+  }, [data]);
+  const mediaCoverageLabels = [
+    'Bangladeshi News Media Covered',
+    'International News Media Covered',
+    'Bangladeshi and International both covered',
+  ];
+  const mediaCoverageValues = [
+    mediaCoverageCounts.bangladeshi,
+    mediaCoverageCounts.international,
+    mediaCoverageCounts.both,
+  ];
+  const mediaCoverageColors = ['#0ea5e9', '#f59e42', '#22c55e'];
+  const mediaCoverageChartData = {
+    labels: mediaCoverageLabels,
     datasets: [
       {
-        label: "Language Distribution",
-        data: langValues,
-        backgroundColor: langColors.slice(0, langLabels.length),
+        label: 'Media Coverage',
+        data: mediaCoverageValues,
+        backgroundColor: mediaCoverageColors,
       },
     ],
-  };
-  const langPieOptions = {
-    plugins: {
-      legend: { position: "bottom" as const },
-      tooltip: {
-        callbacks: {
-          label: function (context: any) {
-            const label = context.label || "";
-            const value = context.parsed;
-            const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
-            const percent = total ? ((value / total) * 100).toFixed(1) : 0;
-            return `${label}: ${value} (${percent}%)`;
-          },
-        },
-      },
-    },
-    datalabels: {
-      display: true,
-      color: "#222",
-      font: { weight: "bold" as const },
-      formatter: (value: number, ctx: any) => {
-        const total = ctx.chart.data.datasets[0].data.reduce((a: number, b: number) => a + b, 0);
-        return total ? `${((value / total) * 100).toFixed(1)}%` : '';
-      },
-    },
-    maintainAspectRatio: false,
-    responsive: true
-  };
-  const langBarOptions = {
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: function (context: any) {
-            const label = context.label || "";
-            const value = context.parsed.y;
-            const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
-            const percent = total ? ((value / total) * 100).toFixed(1) : 0;
-            return `${label}: ${value} (${percent}%)`;
-          },
-        },
-      },
-      datalabels: {
-        display: true,
-        color: "#222",
-        font: { weight: "bold" as const },
-        anchor: "end" as const,
-        align: "top" as const,
-        formatter: (value: number, ctx: any) => {
-          const total = ctx.chart.data.datasets[0].data.reduce((a: number, b: number) => a + b, 0);
-          return total ? `${((value / total) * 100).toFixed(1)}%` : '';
-        },
-      },
-    },
-    maintainAspectRatio: false,
-    responsive: true,
-    scales: {
-      y: { beginAtZero: true, ticks: { stepSize: 10 } },
-    },
   };
 
   // Sentiment color map for charts and badges
@@ -347,6 +326,38 @@ export default function Dashboard() {
   }, [data]);
   const categoryLabels = Object.keys(categoryCounts);
   const categoryValues = Object.values(categoryCounts);
+  const langBarOptions = {
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: function (context: any) {
+            const label = context.label || "";
+            const value = context.parsed.y;
+            const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
+            const percent = total ? ((value / total) * 100).toFixed(1) : 0;
+            return `${label}: ${value} (${percent}%)`;
+          },
+        },
+      },
+      datalabels: {
+        display: true,
+        color: "#222",
+        font: { weight: "bold" as const },
+        anchor: "end" as const,
+        align: "top" as const,
+        formatter: (value: number, ctx: any) => {
+          const total = ctx.chart.data.datasets[0].data.reduce((a: number, b: number) => a + b, 0);
+          return total ? `${((value / total) * 100).toFixed(1)}%` : '';
+        },
+      },
+    },
+    maintainAspectRatio: false,
+    responsive: true,
+    scales: {
+      y: { beginAtZero: true, ticks: { stepSize: 10 } },
+    },
+  };
   const categoryBarData = {
     labels: categoryLabels,
     datasets: [
@@ -483,11 +494,11 @@ export default function Dashboard() {
       })()}
       {/* Dashboard Visualizations */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-        {/* Language Distribution Pie Chart */}
+        {/* Media Coverage Distribution Pie Chart */}
         <div className="bg-white rounded-lg shadow p-6 flex flex-col items-center">
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2"><FaGlobe /> Language Distribution</h3>
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2"><FaGlobe /> Media Coverage Distribution</h3>
           <div className="w-full h-64">
-            <Pie data={langChartData} options={langPieOptions} />
+            <Pie data={mediaCoverageChartData} options={{ plugins: { legend: { position: 'bottom' } } }} />
           </div>
         </div>
         {/* Sentiment Pie Chart (replaces Bar chart) */}
@@ -524,8 +535,41 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
-        {/* Latest Indian News Monitoring */}
-        <div className="card mb-8">
+      {/* Top Entities (NER) word cloud */}
+      <div className="bg-white rounded-lg shadow p-6 mb-8">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2"><FaCloud className="text-primary-500" /> Top Entities (NER)</h3>
+        <div className="w-full h-[24rem]">
+          <ReactWordcloud
+            words={nerKeywords.map(([word, value]) => ({ text: word, value }))}
+            options={{
+              rotations: 2,
+              rotationAngles: [0, 90],
+              fontSizes: [18, 64],
+              fontFamily: 'system-ui',
+              padding: 4,
+              colors: ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'],
+              enableTooltip: true,
+              deterministic: false,
+              scale: 'sqrt',
+              spiral: 'archimedean',
+              transitionDuration: 1000
+            }}
+            callbacks={{
+              onWordClick: (word) => {
+                setSelectedEntity(word.text);
+                setPage(1);
+              },
+              getWordTooltip: (word) => `${word.text}: ${word.value}`,
+            }}
+          />
+          {selectedEntity && (
+            <div className="mt-4 text-sm text-blue-700 font-semibold">Filtering by entity: {selectedEntity} <button className="ml-2 px-2 py-1 rounded bg-gray-200 hover:bg-gray-300" onClick={() => setSelectedEntity("")}>Clear</button></div>
+          )}
+        </div>
+      </div>
+
+      {/* Latest Indian News Monitoring */}
+      <div className="card mb-8">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 gap-4">
           <h2 className="text-2xl font-bold">Latest Indian News</h2>
           <div className="flex gap-2 items-center">
@@ -558,15 +602,15 @@ export default function Dashboard() {
                   { label: "Category", key: "category" },
                   { label: "Sentiment", key: "sentiment" },
                   { label: "Fact Checked", key: "fact_check" },
-                  { label: "Details", key: "detailsUrl" },
+                  { label: "Keywords", key: "keywords" },
                 ].map((col) => (
                   <th
                     key={col.key}
                     className="text-left py-3 px-4 cursor-pointer select-none"
-                    onClick={() => col.key !== "detailsUrl" && handleSort(col.key)}
+                    onClick={() => col.key !== "keywords" && col.key !== "headline" && handleSort(col.key)}
                   >
                     {col.label}
-                    {sortBy === col.key && (
+                    {sortBy === col.key && col.key !== "keywords" && col.key !== "headline" && (
                       <span className="ml-1">{sortDir === "asc" ? "▲" : "▼"}</span>
                     )}
                   </th>
@@ -583,13 +627,13 @@ export default function Dashboard() {
               ) : (
                 paginatedNews().map((item: any) => (
                   <tr key={item.id} className="border-b hover:bg-gray-50">
-                    <td className="py-3 px-4">{item.date ? format(new Date(item.date), "MMM d, yyyy") : "-"}</td>
+                    <td className="py-3 px-4">{item.date ? format(new Date(item.date), "dd-MMM-yy") : "-"}</td>
                     <td className="py-3 px-4 max-w-xs truncate" title={item.headline}>
                       <a href={`/news/${item.id}`} className="text-primary-600 underline">
                         {item.headline.length > 60 ? item.headline.slice(0, 60) + "..." : item.headline}
                       </a>
                     </td>
-                    <td className="py-3 px-4">{item.source_domain || item.source}</td>
+                    <td className="py-3 px-4">{stripTLD(item.source_domain || item.source)}</td>
                     <td className="py-3 px-4">
                       <span className={`px-2 py-1 rounded text-xs font-semibold ${categoryColorMap[item.category || item.news_category || 'Other'] || 'bg-gray-100 text-gray-700 border-gray-300'}`}>
                         {item.category || item.news_category || 'Other'}
@@ -606,9 +650,17 @@ export default function Dashboard() {
                       </span>
                     </td>
                     <td className="py-3 px-4">
-                      <a href={`/news/${item.id}`} className="inline-flex items-center gap-1 px-3 py-1.5 rounded bg-primary-600 text-white font-semibold shadow hover:bg-primary-700 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-primary-400" title="View details">
-                        <FaRegNewspaper className="text-base" /> View
-                      </a>
+                      <div className="flex flex-wrap gap-1">
+                        {(item.entities || []).length > 0 ? (
+                          item.entities.map((kw: string, idx: number) => (
+                            <span key={idx} className="inline-block bg-blue-100 text-blue-700 rounded-full px-2 py-0.5 text-xs font-semibold">
+                              {kw}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-gray-400 text-xs italic">No keywords</span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -638,32 +690,6 @@ export default function Dashboard() {
             </button>
           </div>
         )}
-      </div>
-      {/* Top Entities (NER) word cloud */}
-      <div className="bg-white rounded-lg shadow p-6 mb-8">
-        <h3 className="text-lg font-semibold mb-6 flex items-center gap-2"><FaCloud className="text-primary-500" /> Top Entities (NER)</h3>
-        <div className="w-full h-[24rem]">
-          <ReactWordcloud
-            words={nerKeywords.map(([word, count]) => ({ text: word, value: count }))}
-            options={{
-              rotations: 0,
-              rotationAngles: [0, 0],
-              fontSizes: [16, 48] as [number, number],
-              fontFamily: 'system-ui',
-              padding: 4,
-              colors: ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd'],
-              enableTooltip: true,
-              deterministic: true,
-              scale: 'linear',
-              spiral: 'archimedean',
-              transitionDuration: 1000
-            }}
-            callbacks={{
-              getWordTooltip: (word: any) => `${word.text}: ${word.value}`,
-              onWordClick: (word: any) => console.log(`Clicked: ${word.text}`)
-            }}
-          />
-        </div>
       </div>
       {/* Timeline of Key Events */}
       {data.latestIndianNews && data.latestIndianNews.length > 0 && (

@@ -6,6 +6,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
+    dos2unix \
+    cron \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
@@ -25,9 +27,14 @@ COPY migrations/ ./migrations/
 # Ensure proper permissions
 RUN chmod -R 755 /app
 
-# Copy entrypoint script
-COPY entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
+# Convert entrypoint.sh to Unix format and set permissions
+RUN dos2unix /app/entrypoint.sh && \
+    chmod +x /app/entrypoint.sh
+
+# Setup cron job for data updates
+RUN echo "0 */6 * * * cd /app && flask fetch-exa >> /var/log/cron.log 2>&1" > /etc/cron.d/fetch-exa-cron && \
+    chmod 0644 /etc/cron.d/fetch-exa-cron && \
+    crontab /etc/cron.d/fetch-exa-cron
 
 EXPOSE 5000
 
