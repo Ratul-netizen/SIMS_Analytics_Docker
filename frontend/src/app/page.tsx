@@ -113,6 +113,18 @@ export default function Dashboard() {
   }, [data]);
   const sentimentOptions = ["", "Positive", "Negative", "Neutral", "Cautious"];
   const [selectedEntity, setSelectedEntity] = useState<string>("");
+  const [showFactCheck, setShowFactCheck] = useState(false);
+  const [showMediaCoverage, setShowMediaCoverage] = useState(false);
+  const [showMediaComparison, setShowMediaComparison] = useState(false);
+  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [showCredibility, setShowCredibility] = useState(false);
+  const [showClustering, setShowClustering] = useState(false);
+  const [showBias, setShowBias] = useState(false);
+  const [showImplications, setShowImplications] = useState(false);
+  const [showPredictions, setShowPredictions] = useState(false);
+  const [showFactChecking, setShowFactChecking] = useState(false);
+  const [showKeySources, setShowKeySources] = useState(false);
+  const [showCustomReport, setShowCustomReport] = useState(false);
 
   // Fetch Indian sources for dropdown
   useEffect(() => {
@@ -194,12 +206,12 @@ export default function Dashboard() {
     setPage(1);
   };
 
-  // Compute media coverage distribution
+  // Compute media coverage distribution (fix logic)
   const mediaCoverageCounts = useMemo(() => {
     let bangladeshi = 0, international = 0, both = 0;
     (data?.latestIndianNews || []).forEach((item: any) => {
-      const b = item.media_coverage_summary?.bangladeshi_media && item.media_coverage_summary.bangladeshi_media !== 'Not covered';
-      const i = item.media_coverage_summary?.international_media && item.media_coverage_summary.international_media !== 'Not covered';
+      const b = item.media_coverage_summary?.bangladeshi_media === 'Covered';
+      const i = item.media_coverage_summary?.international_media === 'Covered';
       if (b && i) both++;
       else if (b) bangladeshi++;
       else if (i) international++;
@@ -497,8 +509,12 @@ export default function Dashboard() {
         {/* Media Coverage Distribution Pie Chart */}
         <div className="bg-white rounded-lg shadow p-6 flex flex-col items-center">
           <h3 className="text-lg font-semibold mb-4 flex items-center gap-2"><FaGlobe /> Media Coverage Distribution</h3>
-          <div className="w-full h-64">
-            <Pie data={mediaCoverageChartData} options={{ plugins: { legend: { position: 'bottom' } } }} />
+          <div className="w-full h-64 flex items-center justify-center">
+            {mediaCoverageValues.every(v => v === 0) ? (
+              <div className="text-gray-500 text-center">No media coverage data available.</div>
+            ) : (
+              <Pie data={mediaCoverageChartData} options={{ plugins: { legend: { position: 'bottom' } } }} />
+            )}
           </div>
         </div>
         {/* Sentiment Pie Chart (replaces Bar chart) */}
@@ -716,78 +732,92 @@ export default function Dashboard() {
       )}
       {/* Fact Check Summary */}
       {data.latestIndianNews && data.latestIndianNews.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2"><FaCheckCircle /> Fact Check Summary</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h4 className="font-medium mb-2">Verification Status</h4>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(data.latestIndianNews.reduce((acc: Record<string, number>, item: NewsItem) => {
-                  const status = item.fact_check?.status || 'unverified';
-                  acc[status] = (acc[status] || 0) + 1;
-                  return acc;
-                }, {})).map(([status, count]) => (
-                  <div key={status} className="flex items-center gap-2">
-                    <span className={`px-2 py-1 rounded text-xs font-semibold ${factCheckColorMap[status]}`}>{status}</span>
-                    <span className="text-sm text-gray-600">({count})</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div>
-              <h4 className="font-medium mb-2">Top Sources</h4>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(data.latestIndianNews.reduce((acc: Record<string, number>, item: NewsItem) => {
-                  const source = item.source_domain || item.source;
-                  acc[source] = (acc[source] || 0) + 1;
-                  return acc;
-                }, {})).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([source, count]) => (
-                  <div key={source} className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{source}</span>
-                    <span className="text-sm text-gray-600">({count})</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+        <div className="bg-white rounded-lg shadow p-0 mb-8">
+          <div className="flex items-center justify-between px-6 py-4 border-b">
+            <h3 className="text-lg font-semibold flex items-center gap-2"><FaCheckCircle className="text-primary-600 text-xl" /> Fact Check Summary</h3>
+            <button onClick={() => setShowFactCheck(v => !v)} className="ml-2 px-5 py-1.5 rounded bg-primary-600 text-white font-semibold shadow hover:bg-primary-700 transition text-base">
+              {showFactCheck ? "Hide" : "Show"}
+            </button>
           </div>
+          {showFactCheck && (
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h4 className="font-medium mb-2">Verification Status</h4>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(data.latestIndianNews.reduce((acc: Record<string, number>, item: NewsItem) => {
+                    const status = item.fact_check?.status || 'unverified';
+                    acc[status] = (acc[status] || 0) + 1;
+                    return acc;
+                  }, {})).map(([status, count]) => (
+                    <div key={status} className="flex items-center gap-2">
+                      <span className={`px-2 py-1 rounded text-xs font-semibold ${factCheckColorMap[status]}`}>{status}</span>
+                      <span className="text-sm text-gray-600">({count})</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <h4 className="font-medium mb-2">Top Sources</h4>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(data.latestIndianNews.reduce((acc: Record<string, number>, item: NewsItem) => {
+                    const source = item.source_domain || item.source;
+                    acc[source] = (acc[source] || 0) + 1;
+                    return acc;
+                  }, {})).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([source, count]) => (
+                    <div key={source} className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{source}</span>
+                      <span className="text-sm text-gray-600">({count})</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
       {/* Media Coverage Analysis */}
       {data.latestIndianNews && data.latestIndianNews.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2"><FaGlobe /> Media Coverage Analysis</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h4 className="font-medium mb-2">Bangladeshi Media Coverage</h4>
-              <div className="space-y-2">
-                {data.latestIndianNews.filter((item: NewsItem) => item.media_coverage_summary?.bangladeshi_media && item.media_coverage_summary.bangladeshi_media !== "Not covered").slice(0, 3).length > 0 ? (
-                  data.latestIndianNews.filter((item: NewsItem) => item.media_coverage_summary?.bangladeshi_media && item.media_coverage_summary.bangladeshi_media !== "Not covered").slice(0, 3).map((item: NewsItem, index: number) => (
-                    <div key={index} className="text-sm text-gray-700">
-                      <div className="font-medium">{item.headline}</div>
-                      <div className="text-gray-600">{item.media_coverage_summary.bangladeshi_media}</div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-gray-400 text-sm italic">No data available</div>
-                )}
-              </div>
-            </div>
-            <div>
-              <h4 className="font-medium mb-2">International Media Coverage</h4>
-              <div className="space-y-2">
-                {data.latestIndianNews.filter((item: NewsItem) => item.media_coverage_summary?.international_media && item.media_coverage_summary.international_media !== "Not covered").slice(0, 3).length > 0 ? (
-                  data.latestIndianNews.filter((item: NewsItem) => item.media_coverage_summary?.international_media && item.media_coverage_summary.international_media !== "Not covered").slice(0, 3).map((item: NewsItem, index: number) => (
-                    <div key={index} className="text-sm text-gray-700">
-                      <div className="font-medium">{item.headline}</div>
-                      <div className="text-gray-600">{item.media_coverage_summary.international_media}</div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-gray-400 text-sm italic">No data available</div>
-                )}
-              </div>
-            </div>
+        <div className="bg-white rounded-lg shadow p-0 mb-8">
+          <div className="flex items-center justify-between px-6 py-4 border-b">
+            <h3 className="text-lg font-semibold flex items-center gap-2"><FaGlobe className="text-primary-600 text-xl" /> Media Coverage Analysis</h3>
+            <button onClick={() => setShowMediaCoverage(v => !v)} className="ml-2 px-5 py-1.5 rounded bg-primary-600 text-white font-semibold shadow hover:bg-primary-700 transition text-base">
+              {showMediaCoverage ? "Hide" : "Show"}
+            </button>
           </div>
+          {showMediaCoverage && (
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h4 className="font-medium mb-2">Bangladeshi Media Coverage</h4>
+                <div className="space-y-2">
+                  {data.latestIndianNews.filter((item: NewsItem) => item.media_coverage_summary?.bangladeshi_media && item.media_coverage_summary.bangladeshi_media !== "Not covered").slice(0, 3).length > 0 ? (
+                    data.latestIndianNews.filter((item: NewsItem) => item.media_coverage_summary?.bangladeshi_media && item.media_coverage_summary.bangladeshi_media !== "Not covered").slice(0, 3).map((item: NewsItem, index: number) => (
+                      <div key={index} className="text-sm text-gray-700">
+                        <div className="font-medium">{item.headline}</div>
+                        <div className="text-gray-600">{item.media_coverage_summary.bangladeshi_media}</div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-gray-400 text-sm italic">No data available</div>
+                  )}
+                </div>
+              </div>
+              <div>
+                <h4 className="font-medium mb-2">International Media Coverage</h4>
+                <div className="space-y-2">
+                  {data.latestIndianNews.filter((item: NewsItem) => item.media_coverage_summary?.international_media && item.media_coverage_summary.international_media !== "Not covered").slice(0, 3).length > 0 ? (
+                    data.latestIndianNews.filter((item: NewsItem) => item.media_coverage_summary?.international_media && item.media_coverage_summary.international_media !== "Not covered").slice(0, 3).map((item: NewsItem, index: number) => (
+                      <div key={index} className="text-sm text-gray-700">
+                        <div className="font-medium">{item.headline}</div>
+                        <div className="text-gray-600">{item.media_coverage_summary.international_media}</div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-gray-400 text-sm italic">No data available</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
       {/* --- New: Media Coverage Comparison Over Time --- */}
@@ -864,118 +894,161 @@ export default function Dashboard() {
       )}
       {/* --- Implications & Analysis --- */}
       {data?.implications && (
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <h3 className="text-lg font-semibold mb-4">Implications & Analysis</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {['Political Stability', 'Economic Impact', 'Social Cohesion'].map(type => {
-              const implications = data.implications[type] || [];
-              let impact = null;
-              if (Array.isArray(implications) && implications.length > 0) {
-                const first = implications[0];
-                impact = typeof first === 'object' && first !== null && 'impact' in first ? (first as { impact?: string }).impact : typeof first === 'string' ? first : null;
-              }
-              return (
-                <div key={type} className="p-4 rounded border border-gray-200 bg-gray-50">
-                  <div className="font-bold mb-2">{type}</div>
-                  {impact ? (
-                    <div className="text-gray-700 text-sm">Impact: <span className="font-semibold">{impact}</span></div>
-                  ) : (
-                    <div className="text-gray-400 text-sm italic">No data available</div>
-                  )}
-                </div>
-              );
-            })}
+        <div className="bg-white rounded-lg shadow p-0 mb-8">
+          <div className="flex items-center justify-between px-6 py-4 border-b">
+            <h3 className="text-lg font-semibold flex items-center gap-2">Implications & Analysis</h3>
+            <button onClick={() => setShowImplications(v => !v)} className="ml-2 px-5 py-1.5 rounded bg-primary-600 text-white font-semibold shadow hover:bg-primary-700 transition text-base">
+              {showImplications ? "Hide" : "Show"}
+            </button>
           </div>
+          {showImplications && (
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {['Political Stability', 'Economic Impact', 'Social Cohesion'].map(type => {
+                  const implications = data.implications[type] || [];
+                  let impact = null;
+                  if (Array.isArray(implications) && implications.length > 0) {
+                    const first = implications[0];
+                    impact = typeof first === 'object' && first !== null && 'impact' in first ? (first as { impact?: string }).impact : typeof first === 'string' ? first : null;
+                  }
+                  return (
+                    <div key={type} className="p-4 rounded border border-gray-200 bg-gray-50">
+                      <div className="font-bold mb-2">{type}</div>
+                      {impact ? (
+                        <div className="text-gray-700 text-sm">Impact: <span className="font-semibold">{impact}</span></div>
+                      ) : (
+                        <div className="text-gray-400 text-sm italic">No data available</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
       {/* --- Prediction (Outlook) --- */}
       {data?.predictions && (
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <h3 className="text-lg font-semibold mb-4">Prediction (Outlook)</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {['Political Landscape', 'Economic Implications'].map(type => {
-              const predictions = data.predictions[type] || [];
-              const pred = Array.isArray(predictions) && predictions.length > 0 ? predictions[0] : null;
-              const hasData = pred && typeof pred === 'object' && ((pred as { likelihood?: string, timeFrame?: string, details?: string }).likelihood || (pred as { likelihood?: string, timeFrame?: string, details?: string }).timeFrame || (pred as { likelihood?: string, timeFrame?: string, details?: string }).details);
-              return (
-                <div key={type} className={`p-4 rounded border ${hasData ? 'border-yellow-200 bg-yellow-50' : 'border-gray-200 bg-gray-50'}`}> 
-                  <div className="font-bold mb-2">{type}</div>
-                  {hasData ? (
-                    <>
-                      {'likelihood' in (pred as object) && (pred as any).likelihood && <div>Likelihood: <span className="font-semibold">{(pred as any).likelihood}%</span></div>}
-                      {'timeFrame' in (pred as object) && (pred as any).timeFrame && <div>Time Frame: {(pred as any).timeFrame}</div>}
-                      {'details' in (pred as object) && (pred as any).details && <div className="mt-2 text-gray-700 text-sm">{(pred as any).details}</div>}
-                    </>
-                  ) : pred && typeof pred === 'string' ? (
-                    <div className="text-gray-700 text-sm">{pred}</div>
-                  ) : (
-                    <div className="text-gray-400 text-sm italic">No data available</div>
-                  )}
-                </div>
-              );
-            })}
+        <div className="bg-white rounded-lg shadow p-0 mb-8">
+          <div className="flex items-center justify-between px-6 py-4 border-b">
+            <h3 className="text-lg font-semibold flex items-center gap-2">Prediction (Outlook)</h3>
+            <button onClick={() => setShowPredictions(v => !v)} className="ml-2 px-5 py-1.5 rounded bg-primary-600 text-white font-semibold shadow hover:bg-primary-700 transition text-base">
+              {showPredictions ? "Hide" : "Show"}
+            </button>
           </div>
+          {showPredictions && (
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {['Political Landscape', 'Economic Implications'].map(type => {
+                  const predictions = data.predictions[type] || [];
+                  const pred = Array.isArray(predictions) && predictions.length > 0 ? predictions[0] : null;
+                  const hasData = pred && typeof pred === 'object' && ((pred as { likelihood?: string, timeFrame?: string, details?: string }).likelihood || (pred as { likelihood?: string, timeFrame?: string, details?: string }).timeFrame || (pred as { likelihood?: string, timeFrame?: string, details?: string }).details);
+                  return (
+                    <div key={type} className={`p-4 rounded border ${hasData ? 'border-yellow-200 bg-yellow-50' : 'border-gray-200 bg-gray-50'}`}> 
+                      <div className="font-bold mb-2">{type}</div>
+                      {hasData ? (
+                        <>
+                          {'likelihood' in (pred as object) && (pred as any).likelihood && <div>Likelihood: <span className="font-semibold">{(pred as any).likelihood}%</span></div>}
+                          {'timeFrame' in (pred as object) && (pred as any).timeFrame && <div>Time Frame: {(pred as any).timeFrame}</div>}
+                          {'details' in (pred as object) && (pred as any).details && <div className="mt-2 text-gray-700 text-sm">{(pred as any).details}</div>}
+                        </>
+                      ) : pred && typeof pred === 'string' ? (
+                        <div className="text-gray-700 text-sm">{pred}</div>
+                      ) : (
+                        <div className="text-gray-400 text-sm italic">No data available</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
       {/* --- Fact-Checking: Cross-Media Comparison --- */}
       {data?.factChecking && (
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <h3 className="text-lg font-semibold mb-4">Fact-Checking: Cross-Media Comparison</h3>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {['False', 'Mixed', 'True', 'Unverified'].map(verdict => {
-              const info = data.factChecking[verdict] || {};
-              const samples = Array.isArray(info.samples) ? info.samples : [];
-              let color = 'border-gray-200 bg-gray-50';
-              if (verdict === 'True') color = 'border-green-200 bg-green-50';
-              if (verdict === 'False') color = 'border-red-200 bg-red-50';
-              if (verdict === 'Mixed') color = 'border-yellow-200 bg-yellow-50';
-              return (
-                <div key={verdict} className={`p-4 rounded border ${color}`}>
-                  <div className="font-bold mb-1">{verdict} <span className="text-gray-500 font-normal">({samples.length})</span></div>
-                  {samples.length > 0 ? (
-                    <ul className="list-disc ml-5 text-xs text-gray-700">
-                      {samples.map((sample: any, idx: number) => (
-                        <li key={idx}><span className="font-semibold">{sample.headline}</span> <span className="text-gray-500">({sample.source}, {sample.date ? new Date(sample.date).toLocaleDateString() : 'N/A'})</span></li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <div className="text-xs text-gray-400">No samples available</div>
-                  )}
-                </div>
-              );
-            })}
+        <div className="bg-white rounded-lg shadow p-0 mb-8">
+          <div className="flex items-center justify-between px-6 py-4 border-b">
+            <h3 className="text-lg font-semibold flex items-center gap-2">Fact-Checking: Cross-Media Comparison</h3>
+            <button onClick={() => setShowFactChecking(v => !v)} className="ml-2 px-5 py-1.5 rounded bg-primary-600 text-white font-semibold shadow hover:bg-primary-700 transition text-base">
+              {showFactChecking ? "Hide" : "Show"}
+            </button>
           </div>
+          {showFactChecking && (
+            <div className="p-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+              {['False', 'Mixed', 'True', 'Unverified'].map(verdict => {
+                const info = data.factChecking[verdict] || {};
+                const samples = Array.isArray(info.samples) ? info.samples : [];
+                let color = 'border-gray-200 bg-gray-50';
+                if (verdict === 'True') color = 'border-green-200 bg-green-50';
+                if (verdict === 'False') color = 'border-red-200 bg-red-50';
+                if (verdict === 'Mixed') color = 'border-yellow-200 bg-yellow-50';
+                return (
+                  <div key={verdict} className={`p-4 rounded border ${color}`}>
+                    <div className="font-bold mb-1">{verdict} <span className="text-gray-500 font-normal">({samples.length})</span></div>
+                    {samples.length > 0 ? (
+                      <ul className="list-disc ml-5 text-xs text-gray-700">
+                        {samples.map((sample: any, idx: number) => (
+                          <li key={idx}><span className="font-semibold">{sample.headline}</span> <span className="text-gray-500">({sample.source}, {sample.date ? new Date(sample.date).toLocaleDateString() : 'N/A'})</span></li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="text-xs text-gray-400">No samples available</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
       {/* --- Key Sources Used --- */}
       {data.keySources && data.keySources.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <h3 className="text-lg font-semibold mb-4">Key Sources Used</h3>
-          <div className="flex flex-wrap gap-2">
-            {data.keySources.map((source: string, idx: number) => (
-              <span key={idx} className="inline-block bg-blue-100 text-blue-700 rounded px-2 py-1 text-xs font-semibold">{source}</span>
-            ))}
+        <div className="bg-white rounded-lg shadow p-0 mb-8">
+          <div className="flex items-center justify-between px-6 py-4 border-b">
+            <h3 className="text-lg font-semibold flex items-center gap-2">Key Sources Used</h3>
+            <button onClick={() => setShowKeySources(v => !v)} className="ml-2 px-5 py-1.5 rounded bg-primary-600 text-white font-semibold shadow hover:bg-primary-700 transition text-base">
+              {showKeySources ? "Hide" : "Show"}
+            </button>
           </div>
+          {showKeySources && (
+            <div className="p-6">
+              <div className="flex flex-wrap gap-2">
+                {data.keySources.map((source: string, idx: number) => (
+                  <span key={idx} className="inline-block bg-blue-100 text-blue-700 rounded px-2 py-1 text-xs font-semibold">{source}</span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
       {/* --- New: User-Driven Custom Reports --- */}
-      <div className="bg-white rounded-lg shadow p-6 mb-8">
-        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2"><FaRegNewspaper /> Export Custom Report</h3>
-        <button className="btn-primary" onClick={() => {
-          const csv = [
-            ['Date', 'Headline', 'Source', 'Category', 'Sentiment', 'Fact Checked', 'URL'],
-            ...data.latestIndianNews.map((item: any) => [item.date, item.headline, item.source, item.category, item.sentiment, item.fact_check, item.url || ''])
-          ].map((row: any[]) => row.map((field: any) => `"${String(field).replace(/"/g, '""')}"`).join(',')).join('\n');
-          const blob = new Blob([csv], { type: 'text/csv' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = 'custom_report.csv';
-          a.click();
-          URL.revokeObjectURL(url);
-        }}>
-          Export as CSV
-        </button>
+      <div className="bg-white rounded-lg shadow p-0 mb-8">
+        <div className="flex items-center justify-between px-6 py-4 border-b">
+          <h3 className="text-lg font-semibold flex items-center gap-2"><FaRegNewspaper className="text-primary-600 text-xl" /> Export Custom Report</h3>
+          <button onClick={() => setShowCustomReport(v => !v)} className="ml-2 px-5 py-1.5 rounded bg-primary-600 text-white font-semibold shadow hover:bg-primary-700 transition text-base">
+            {showCustomReport ? "Hide" : "Show"}
+          </button>
+        </div>
+        {showCustomReport && (
+          <div className="p-6">
+            <button className="btn-primary" onClick={() => {
+              const csv = [
+                ['Date', 'Headline', 'Source', 'Category', 'Sentiment', 'Fact Checked', 'URL'],
+                ...data.latestIndianNews.map((item: any) => [item.date, item.headline, item.source, item.category, item.sentiment, item.fact_check, item.url || ''])
+              ].map((row: any[]) => row.map((field: any) => `"${String(field).replace(/"/g, '""')}"`).join(',')).join('\n');
+              const blob = new Blob([csv], { type: 'text/csv' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = 'custom_report.csv';
+              a.click();
+              URL.revokeObjectURL(url);
+            }}>
+              Export as CSV
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
