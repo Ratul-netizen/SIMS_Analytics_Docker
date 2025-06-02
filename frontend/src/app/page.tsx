@@ -552,7 +552,7 @@ export default function Dashboard() {
         ))}
       </div>
       {/* Top Entities (NER) word cloud */}
-      <div className="bg-white rounded-lg shadow p-6 mb-8">
+      <div className="bg-white rounded-lg shadow p-6 mb-8 relative">
         <h3 className="text-lg font-semibold mb-4 flex items-center gap-2"><FaCloud className="text-primary-500" /> Top Entities (NER)</h3>
         <div className="w-full h-[24rem]">
           <ReactWordcloud
@@ -579,7 +579,10 @@ export default function Dashboard() {
             }}
           />
           {selectedEntity && (
-            <div className="mt-4 text-sm text-blue-700 font-semibold">Filtering by entity: {selectedEntity} <button className="ml-2 px-2 py-1 rounded bg-gray-200 hover:bg-gray-300" onClick={() => setSelectedEntity("")}>Clear</button></div>
+            <div className="absolute left-6 bottom-6 bg-white bg-opacity-90 rounded px-3 py-2 flex items-center gap-2 shadow">
+              <span className="text-sm text-blue-700 font-semibold">Filtering by entity: {selectedEntity}</span>
+              <button className="ml-2 px-2 py-1 rounded bg-gray-200 hover:bg-gray-300 text-sm" onClick={() => setSelectedEntity("")}>Clear</button>
+            </div>
           )}
         </div>
       </div>
