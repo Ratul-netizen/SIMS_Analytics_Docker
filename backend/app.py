@@ -581,7 +581,8 @@ def dashboard():
             latest_news_query = latest_news_query.filter(Article.published_at < end_dt)
         except Exception:
             pass
-    latest_news = latest_news_query.order_by(Article.published_at.desc()).all()
+    # Always get the latest 100 news by date
+    latest_news = latest_news_query.order_by(Article.published_at.desc()).limit(100).all()
     latest_news_data = []
     # Prepare sets of Bangladeshi and International sources
     bd_sources = set([
